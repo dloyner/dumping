@@ -1,3 +1,4 @@
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -6,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::errors::{NanoServiceError, NanoServiceErrorStatus, ResultExt};
 
 const TOKEN_TTL_SECS: u64 = 24 * 60 * 60;
+static JWT_SECRET: OnceLock<String> = OnceLock::new();
 
 #[derive(Serialize, Deserialize)]
 struct Claims {
@@ -19,8 +21,23 @@ pub struct HeaderToken {
 }
 
 impl HeaderToken {
+    pub fn validate_secret() -> Result<(), NanoServiceError> {
+        let key = Self::get_key()?;
+        if key.len() < 32 || key.starts_with("replace with") {
+            return Err(NanoServiceError::new(
+                "JWT_SECRET too weak",
+                NanoServiceErrorStatus::Unknown,
+            ));
+        }
+        Ok(())
+    }
+
     pub fn get_key() -> Result<String, NanoServiceError> {
-        std::env::var("JWT_SECRET").eject(NanoServiceErrorStatus::Unknown)
+        if let Some(secret) = JWT_SECRET.get() {
+            return Ok(secret.clone());
+        }
+        let secret = std::env::var("JWT_SECRET").eject(NanoServiceErrorStatus::Unknown)?;
+        Ok(JWT_SECRET.get_or_init(|| secret).clone())
     }
 
     pub fn encode(self) -> Result<String, NanoServiceError> {
@@ -64,9 +81,9 @@ mod axum_impl {
             parts: &mut Parts,
             _state: &S,
         ) -> Result<Self, Self::Rejection> {
-            let Some(raw_data) = parts.headers.get("token") else {
+            let Some(raw_data) = parts.headers.get(axum::http::header::AUTHORIZATION) else {
                 return Err(NanoServiceError::new(
-                    "Token not found in header under key 'token'",
+                    "Authorization header not found",
                     NanoServiceErrorStatus::Unauthorized,
                 ));
             };
@@ -78,6 +95,12 @@ mod axum_impl {
                 ));
             };
 
+            let token = token.strip_prefix("Bearer ").ok_or_else(|| {
+                NanoServiceError::new(
+                    "Invalid authorization scheme",
+                    NanoServiceErrorStatus::Unauthorized,
+                )
+            })?;
             HeaderToken::decode(token)
         }
     }

@@ -94,7 +94,13 @@ mod axum_impl {
             let status = StatusCode::from_u16(self.status.http_status_code())
                 .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-            (status, Json(self.to_string())).into_response()
+            let body = if self.status == super::NanoServiceErrorStatus::Unknown {
+                tracing::error!(error = %self.message, "internal error");
+                "internal server error".to_owned()
+            } else {
+                self.to_string()
+            };
+            (status, Json(body)).into_response()
         }
     }
 }

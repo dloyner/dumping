@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::OnceLock;
 
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
@@ -5,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use glue::errors::{NanoServiceError, NanoServiceErrorStatus};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct NewUser {
     pub email: String,
     pub password_hash: String,
@@ -35,13 +36,24 @@ impl NewUser {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Deserialize, Clone, PartialEq, sqlx::FromRow)]
 pub struct User {
     pub id: i32,
     pub email: String,
     #[sqlx(rename = "password")]
     pub password_hash: String,
     pub unique_id: String,
+}
+
+impl fmt::Debug for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("email", &self.email)
+            .field("password_hash", &"[redacted]")
+            .field("unique_id", &self.unique_id)
+            .finish()
+    }
 }
 
 impl User {

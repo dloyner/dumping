@@ -27,13 +27,16 @@ describe("frontend API request helpers", () => {
 		const result = await postCall("/api/create", { title: "task" }, 201);
 
 		expect(result).toEqual({ status: 201, data: { id: 7 } });
-		expect(request).toHaveBeenCalledWith({
+		expect(request.mock.calls[0][0]).toMatchObject({
 			method: "post",
 			url: "/api/create",
 			data: { title: "task" },
-			headers: { "Content-Type": "application/json", token: "signed-token" },
-			validateStatus: expect.any(Function),
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: "Bearer signed-token",
+			},
 		});
+		expect(typeof request.mock.calls[0][0].validateStatus).toBe("function");
 	});
 
 	test("returns the response status and payload when it differs from the expected status", async () => {

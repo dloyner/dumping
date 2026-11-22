@@ -19,6 +19,8 @@ mod reqwest_imports {
 
 #[cfg(any(feature = "core-postgres", feature = "http"))]
 use common_imports::*;
+#[cfg(feature = "http")]
+use std::sync::OnceLock;
 
 #[cfg(feature = "core-postgres")]
 use core_imports::*;
@@ -41,7 +43,13 @@ pub async fn get_user_by_unique_id_http(id: &str) -> Result<TrimmedUser, NanoSer
 
 #[cfg(feature = "http")]
 async fn get_user_by_unique_id_api_call(id: &str) -> Result<TrimmedUser, NanoServiceError> {
-    let url = std::env::var("AUTH_API_URL").eject(NanoServiceErrorStatus::BadRequest)?;
+    static AUTH_API_URL: OnceLock<String> = OnceLock::new();
+    let url = if let Some(url) = AUTH_API_URL.get() {
+        url.as_str()
+    } else {
+        let value = std::env::var("AUTH_API_URL").eject(NanoServiceErrorStatus::Unknown)?;
+        AUTH_API_URL.get_or_init(|| value).as_str()
+    };
     let full_url = format!("{}/api/v1/users/me", url);
     let header_token = HeaderToken {
         unique_id: id.to_owned(),
@@ -51,22 +59,22 @@ async fn get_user_by_unique_id_api_call(id: &str) -> Result<TrimmedUser, NanoSer
     let client = Client::new();
     let response = client
         .get(&full_url)
-        .header("token", header_token)
+        .header("Authorization", format!("Bearer {header_token}"))
         .send()
         .await
-        .eject(NanoServiceErrorStatus::BadRequest)?;
+        .eject(NanoServiceErrorStatus::Unknown)?;
 
     if response.status().is_success() {
         let trimmed_user = response
             .json::<TrimmedUser>()
             .await
-            .eject(NanoServiceErrorStatus::BadRequest)?;
+            .eject(NanoServiceErrorStatus::Unknown)?;
 
         Ok(trimmed_user)
     } else {
         Err(NanoServiceError::new(
             format!("failed to get user: {}", response.status()),
-            NanoServiceErrorStatus::BadRequest,
+            NanoServiceErrorStatus::Unknown,
         ))
     }
 }

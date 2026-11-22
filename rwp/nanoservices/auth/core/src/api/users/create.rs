@@ -11,7 +11,21 @@ pub struct CreateUser {
 }
 
 pub async fn create<T: SaveOne>(store: &T, data: CreateUser) -> Result<User, NanoServiceError> {
-    let user = tokio::task::spawn_blocking(move || NewUser::new(data.email, data.password))
+    let email = data.email.trim().to_lowercase();
+    if email.len() > 254 || !email.contains('@') {
+        return Err(NanoServiceError::new(
+            "invalid email",
+            NanoServiceErrorStatus::BadRequest,
+        ));
+    }
+    if !(8..=128).contains(&data.password.chars().count()) {
+        return Err(NanoServiceError::new(
+            "password must be 8-128 chars",
+            NanoServiceErrorStatus::BadRequest,
+        ));
+    }
+
+    let user = tokio::task::spawn_blocking(move || NewUser::new(email, data.password))
         .await
         .eject(NanoServiceErrorStatus::Unknown)??;
     let created_item = store.save_one(user).await?;

@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::to_do_items::schema::ToDoItem;
+use crate::to_do_items::schema::{ToDoItem, UpdateToDoStatus};
 use glue::db::db_error;
 use glue::errors::NanoServiceError;
 
@@ -11,7 +11,7 @@ use glue::errors::NanoServiceErrorStatus;
 pub trait UpdateOne {
     fn update_one(
         &self,
-        item: ToDoItem,
+        item: UpdateToDoStatus,
         user_id: &str,
     ) -> impl Future<Output = Result<ToDoItem, NanoServiceError>> + Send;
 }
@@ -20,7 +20,7 @@ pub trait UpdateOne {
 impl UpdateOne for SqlxPostgresDescriptor {
     async fn update_one(
         &self,
-        item: ToDoItem,
+        item: UpdateToDoStatus,
         user_id: &str,
     ) -> Result<ToDoItem, NanoServiceError> {
         sqlx::query_as::<_, ToDoItem>(

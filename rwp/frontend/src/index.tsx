@@ -17,6 +17,7 @@ import type { ToDoItems } from "./interfaces/toDoItems";
 const App = () => {
 	const [data, setData] = useState<ToDoItems | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [notice, setNotice] = useState<string | null>(null);
 	const [wasmReady, setWasmReady] = useState(false);
 	const [loggedin, setLoggedin] = useState<boolean>(
 		localStorage.getItem("token") !== null,
@@ -112,12 +113,39 @@ const App = () => {
 				handleUnauthorized();
 				return;
 			}
-			setError(response.error);
+			setNotice(response.error);
 			return;
 		}
 
 		setData(response.data);
+		setNotice(null);
 		setError(null);
+	}
+
+	function renderList(
+		heading: string,
+		items: ToDoItems["pending"],
+		emptyMessage: string,
+	) {
+		return (
+			<>
+				<h1>{heading}</h1>
+				<div>
+					{items.length === 0 ? (
+						<p className="emptyState">{emptyMessage}</p>
+					) : items.map((item) => (
+						<ToDoItem
+							key={item.id}
+							id={item.id}
+							title={item.title}
+							status={item.status}
+							buttonMessage={rust_generate_button_text(item.status)}
+							passBackResponse={reRenderItems}
+						/>
+					))}
+				</div>
+			</>
+		);
 	}
 
 	if (!loggedin) {
@@ -145,41 +173,10 @@ const App = () => {
 					</button>
 				</div>
 
-				<h1>Pending Items</h1>
-
-				<div>
-					{data.pending.length === 0 ? (
-						<p className="emptyState">No pending tasks. You're all caught up.</p>
-					) : data.pending.map((item) => (
-						<ToDoItem
-							key={item.id}
-							id={item.id}
-							title={item.title}
-							status={item.status}
-							buttonMessage={rust_generate_button_text(item.status)}
-							passBackResponse={reRenderItems}
-						/>
-					))}
-				</div>
-
-				<h1>Done Items</h1>
-
-				<div>
-					{data.done.length === 0 ? (
-						<p className="emptyState">Completed tasks will appear here.</p>
-					) : data.done.map((item) => (
-						<ToDoItem
-							key={item.id}
-							id={item.id}
-							title={item.title}
-							status={item.status}
-							buttonMessage={rust_generate_button_text(item.status)}
-							passBackResponse={reRenderItems}
-						/>
-					))}
-
-					<CreateToDoItem passBackResponse={reRenderItems} />
-				</div>
+				{notice && <p className="appError" role="alert">{notice}</p>}
+				{renderList("Pending Items", data.pending, "No pending tasks. You're all caught up.")}
+				{renderList("Done Items", data.done, "Completed tasks will appear here.")}
+				<CreateToDoItem passBackResponse={reRenderItems} />
 			</div>
 		</div>
 	);

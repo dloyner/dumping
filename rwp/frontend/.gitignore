@@ -5,6 +5,7 @@ npm-debug.log*
 # esbuild output
 public/bundle.js
 public/bundle.js.map
+public/bundle.css*
 
 # TypeScript
 *.tsbuildinfo

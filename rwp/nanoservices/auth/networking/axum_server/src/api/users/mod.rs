@@ -14,9 +14,27 @@ pub fn users_router<
     T: AuthStore + Clone + Send + Sync + 'static,
     X: Clone + Send + Sync + 'static,
 >() -> Router<AppState<T, X>> {
-    let users_router = Router::new()
-        .route("/create", post(create::create::<T, X>))
-        .route("/me", get(get::get_me::<T, X>));
+    Router::new()
+        .merge(create_router::<T, X>())
+        .merge(get_router::<T, X>())
+}
 
-    Router::new().nest("/users", users_router)
+pub fn create_router<
+    T: AuthStore + Clone + Send + Sync + 'static,
+    X: Clone + Send + Sync + 'static,
+>() -> Router<AppState<T, X>> {
+    Router::new().nest(
+        "/users",
+        Router::new().route("/create", post(create::create::<T, X>)),
+    )
+}
+
+pub fn get_router<
+    T: AuthStore + Clone + Send + Sync + 'static,
+    X: Clone + Send + Sync + 'static,
+>() -> Router<AppState<T, X>> {
+    Router::new().nest(
+        "/users",
+        Router::new().route("/me", get(get::get_me::<T, X>)),
+    )
 }

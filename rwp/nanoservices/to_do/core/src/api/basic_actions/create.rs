@@ -1,4 +1,4 @@
-use glue::errors::NanoServiceError;
+use glue::errors::{NanoServiceError, NanoServiceErrorStatus};
 use to_do_dal::to_do_items::schema::{NewToDoItem, ToDoItem};
 use to_do_dal::to_do_items::transactions::create::SaveOne;
 
@@ -7,6 +7,17 @@ pub async fn create<T: SaveOne>(
     item: NewToDoItem,
     user_id: &str,
 ) -> Result<ToDoItem, NanoServiceError> {
+    let title = item.title.trim().to_owned();
+    if title.is_empty() || title.chars().count() > 255 {
+        return Err(NanoServiceError::new(
+            "invalid title",
+            NanoServiceErrorStatus::BadRequest,
+        ));
+    }
+    let item = NewToDoItem {
+        title,
+        status: item.status,
+    };
     let created_item = store.save_one(item, user_id).await?;
     Ok(created_item)
 }

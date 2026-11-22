@@ -6,7 +6,7 @@ A rust web following Maxwell Flitton's _Rust Web Programming_.
 
 ```text
  Browser
-   | HTTP: login and to-do API requests (JWT in the `token` header)
+   | HTTP: login and to-do API requests (JWT in `Authorization: Bearer`)
    v
 +-------------------------- ingress process ----------------------------+
 |  Frontend assets       /api/v1/auth/*          /api/v1/{get,create,   |
@@ -35,8 +35,9 @@ A rust web following Maxwell Flitton's _Rust Web Programming_.
 ```
 
 Ingress currently assembles the frontend, auth router, and to-do router into
-one Axum process. The routers call their core and data-access layers in-process;
-the user-session cache is the Redis boundary. `to-do-axum-server` and
+one Axum process. The routers call their core and data-access layers in-process.
+The to-do server intentionally opens the auth database pool to resolve Redis
+sessions to numeric user IDs. `to-do-axum-server` and
 `auth-axum-server` also contain standalone server entry points.
 
 ### Components and layers
@@ -73,6 +74,22 @@ The normal request path is:
 Auth can resolve users through the core PostgreSQL backend or the HTTP backend,
 selected by the `auth-core-postgres` or `auth-http` feature.
 
+Redis sessions are keyed by the user's stable `unique_id`, so a second login
+replaces the first session and logging out invalidates that shared session.
+
+### Rate limits
+
+Ingress rate-limits auth routes by the peer TCP IP. Login and logout share a
+token bucket with a burst of five requests and one token added every 12 seconds.
+Registration has a separate bucket with a burst of three and one token added
+per hour. Rejected requests return `429` and rate-limit headers. In particular,
+`per_second(12)` means one token every 12 seconds, not 12 requests per second.
+
+When ingress sits behind a reverse proxy, the peer IP is the proxy address, so
+clients behind it share a bucket. The current config intentionally ignores
+forwarded-IP headers. Use a trusted proxy-aware extractor only after the proxy
+overwrites those headers and ingress cannot be reached directly.
+
 ## Run locally
 
 ### Prerequisites
@@ -80,6 +97,7 @@ selected by the `auth-core-postgres` or `auth-http` feature.
 - Docker with the Docker Compose plugin
 - Rust toolchain and Cargo
 - [Bun](https://bun.sh/) for building and serving the frontend
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) and the `wasm32-unknown-unknown` Rust target
 - `xh` to use the user creation helper
 
 ### Start the app
@@ -91,24 +109,25 @@ selected by the `auth-core-postgres` or `auth-http` feature.
    ```
 
    The script copies `.env.example` to `.env` if needed, starts PostgreSQL,
-   Redis, and Elasticsearch through Docker Compose, builds the frontend, and
+   Redis through Docker Compose, builds the frontend, and
    builds and starts ingress in release mode on port `8001`. Ingress runs the
    auth and to-do database migrations on startup. Set a private `JWT_SECRET` in
-   `.env` before using the app. The default local cache URL is
-   `redis://127.0.0.1:6379`.
+   `.env` before using the app. The example config uses a password protected
+   Redis URL bound to localhost.
 
 2. In another terminal, register a user:
 
    ```sh
-   ./scripts/create_user user@example.com 'astrongpassword'
+   ./scripts/create_user user@example.com
    ```
 
-   The helper posts to `http://127.0.0.1:8001/api/v1/users/create`. Override
-   the base URL with `INGRESS_URL` if ingress is listening elsewhere. The
+   The helper prompts for the password without echoing it, then posts to
+   `http://127.0.0.1:8001/api/v1/users/create`. Override the base URL with
+   `INGRESS_URL` if ingress is listening elsewhere. The
    account is stored in the auth PostgreSQL database.
 
 3. Open <http://127.0.0.1:8001> and sign in with that email and password. The
-   app stores the returned JWT in browser storage, uses it for to-do requests,
+   app stores the returned JWT in browser storage and sends it as a Bearer token,
    and clears the session when you log out. To-do items are scoped to the
    signed-in user.
 
@@ -130,13 +149,14 @@ table schemas and SQLx migration history, run:
 The script displays the database targets and asks you to type `CLEAN to_do
 auth` before changing data. Use `./scripts/clean_db.sh --yes` only for
 non-interactive use after verifying the targets. Sequences are restarted. The
-script does not delete Redis or Elasticsearch data.
+script does not delete Redis data.
 
 ## Test
 
-Run `./scripts/test.sh` for Rust unit tests (including Basic-auth parsing), the
-in-memory to-do API lifecycle integration test, ingress routing tests, frontend
-URL tests, TypeScript checking, and frontend build.
+Run `docker compose up -d postgres` before `./scripts/test.sh`. Rust tests include
+a PostgreSQL-backed check that two users can create the same title, along with
+the Basic-auth, in-memory to-do lifecycle, and ingress routing tests. The script
+also runs frontend URL tests, TypeScript checking, and the frontend build.
 
 To include the PostgreSQL-backed API smoke test, start the local stack and sign
 in to get a JWT. For example, with `xh` and `jq` installed:
@@ -154,6 +174,6 @@ default). Its current API uses `title`, numeric item IDs, and `/get/{id}` and
 
 The browser calls `POST /api/v1/auth/login` with Basic auth. Ingress validates
 the credentials, returns a JWT, and writes the session to Redis. To-do requests
-send that JWT in the `token` header; the API resolves its unique ID through the
+send that JWT as a Bearer token; the API resolves its unique ID through the
 session cache and scopes CRUD operations by the resulting user ID. Logout calls
 `POST /api/v1/auth/logout`, which removes the cached session.

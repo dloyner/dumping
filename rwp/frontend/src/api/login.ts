@@ -5,7 +5,8 @@ export const login = async (
 	email: string,
 	password: string,
 ): Promise<string> => {
-	const authToken = btoa(`${email}:${password}`);
+	const bytes = new TextEncoder().encode(`${email}:${password}`);
+	const authToken = btoa(String.fromCharCode(...bytes));
 	try {
 		const response = await axios({
 			method: "post",
@@ -21,7 +22,6 @@ export const login = async (
 		} else {
 			console.error("Unexpected error: ", error);
 		}
-		alert("Login failed. Please try again.");
 		throw error;
 	}
 };

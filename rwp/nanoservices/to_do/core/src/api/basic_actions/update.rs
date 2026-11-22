@@ -1,10 +1,10 @@
 use glue::errors::NanoServiceError;
-use to_do_dal::to_do_items::schema::ToDoItem;
+use to_do_dal::to_do_items::schema::UpdateToDoStatus;
 use to_do_dal::to_do_items::transactions::update::UpdateOne;
 
 pub async fn update<T: UpdateOne>(
     store: &T,
-    item: ToDoItem,
+    item: UpdateToDoStatus,
     user_id: &str,
 ) -> Result<(), NanoServiceError> {
     store.update_one(item, user_id).await?;
@@ -16,18 +16,24 @@ mod tests {
     use super::update;
     use glue::errors::{NanoServiceError, NanoServiceErrorStatus};
     use to_do_dal::to_do_items::{
-        enums::TaskStatus, schema::ToDoItem, transactions::update::UpdateOne,
+        enums::TaskStatus,
+        schema::{ToDoItem, UpdateToDoStatus},
+        transactions::update::UpdateOne,
     };
 
     struct Store;
     impl UpdateOne for Store {
         async fn update_one(
             &self,
-            item: ToDoItem,
+            item: UpdateToDoStatus,
             user_id: &str,
         ) -> Result<ToDoItem, NanoServiceError> {
             if user_id == "user-1" && item.id == 5 {
-                Ok(item)
+                Ok(ToDoItem {
+                    id: item.id,
+                    title: "updated".into(),
+                    status: item.status,
+                })
             } else {
                 Err(NanoServiceError::new(
                     "Item not found",
@@ -39,9 +45,8 @@ mod tests {
 
     #[tokio::test]
     async fn update_succeeds_and_preserves_store_errors() {
-        let item = ToDoItem {
+        let item = UpdateToDoStatus {
             id: 5,
-            title: "updated".into(),
             status: TaskStatus::Done,
         };
         assert!(update(&Store, item.clone(), "user-1").await.is_ok());

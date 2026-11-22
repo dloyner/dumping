@@ -12,21 +12,23 @@ export const CreateToDoItem: FC<CreateToDoItemProps> = ({
 	passBackResponse,
 }) => {
 	const [title, setTitle] = useState<string>("");
+	const [busy, setBusy] = useState(false);
 
 	const handleTitleChange = (e: ChangeEvent<HTMLInputElement>) => {
 		setTitle(e.target.value);
 	};
 
-	const createItem = async () => {
-		if (!title.trim()) return;
-
-		const response = await createToDoItemCall(title.trim());
-		setTitle("");
-		passBackResponse(response);
-	};
-
 	return (
-		<div className="inputContainer">
+		<form className="inputContainer" onSubmit={async (e) => {
+			e.preventDefault();
+			if (busy || !title.trim()) return;
+			setBusy(true);
+			try {
+				const response = await createToDoItemCall(title.trim());
+				if (!("error" in response)) setTitle("");
+				passBackResponse(response);
+			} finally { setBusy(false); }
+		}}>
 			<input
 				type="text"
 				id="title"
@@ -34,9 +36,9 @@ export const CreateToDoItem: FC<CreateToDoItemProps> = ({
 				value={title}
 				onChange={handleTitleChange}
 			/>
-			<button className="actionButton" id="create-button" onClick={createItem}>
+			<button className="actionButton" id="create-button" disabled={busy}>
 				Create
 			</button>
-		</div>
+		</form>
 	);
 };

@@ -3,13 +3,22 @@ use axum::{
     http::{HeaderMap, header, request::Parts},
 };
 use base64::{Engine, engine::general_purpose};
+use std::fmt;
 
 use glue::errors::{NanoServiceError, NanoServiceErrorStatus};
 
-#[derive(Debug)]
 pub struct Credentials {
     pub email: String,
     pub password: String,
+}
+
+impl fmt::Debug for Credentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Credentials")
+            .field("email", &self.email)
+            .field("password", &"[redacted]")
+            .finish()
+    }
 }
 
 fn invalid() -> NanoServiceError {

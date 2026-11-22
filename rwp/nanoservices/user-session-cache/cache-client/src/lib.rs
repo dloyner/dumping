@@ -1,15 +1,21 @@
 use redis::Value;
-use redis::aio::{ConnectionLike, MultiplexedConnection};
+use redis::aio::{ConnectionLike, ConnectionManager};
+use tokio::sync::OnceCell;
 
 use glue::errors::{NanoServiceError, NanoServiceErrorStatus, ResultExt};
 
-async fn get_connection(address: &str) -> Result<MultiplexedConnection, NanoServiceError> {
-    let client = redis::Client::open(address).eject(NanoServiceErrorStatus::Unknown)?;
-    let conn = client
-        .get_multiplexed_async_connection()
-        .await
-        .eject(NanoServiceErrorStatus::Unknown)?;
-    Ok(conn)
+static CACHE_CONNECTION: OnceCell<ConnectionManager> = OnceCell::const_new();
+
+async fn get_connection(address: &str) -> Result<ConnectionManager, NanoServiceError> {
+    let connection = CACHE_CONNECTION
+        .get_or_try_init(|| async {
+            let client = redis::Client::open(address).eject(NanoServiceErrorStatus::Unknown)?;
+            ConnectionManager::new(client)
+                .await
+                .eject(NanoServiceErrorStatus::Unknown)
+        })
+        .await?;
+    Ok(connection.clone())
 }
 
 fn unpack_result_string(result: Value) -> Result<String, NanoServiceError> {

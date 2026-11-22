@@ -3,16 +3,18 @@ name = "glue"
 version = "0.1.0"
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
-thiserror = "2"
-jsonwebtoken = "9.3.0"
+thiserror.workspace = true
+jsonwebtoken.workspace = true
 tracing.workspace = true
 tower-http.workspace = true
 tracing-subscriber = "0.3.23"
@@ -21,4 +23,3 @@ tracing-subscriber = "0.3.23"
 [features]
 axum = ["dep:axum"]
 sqlx = ["dep:sqlx"]
-elastic-logger = ["dep:serde_json", "dep:tokio", "dep:reqwest", "dep:chrono"]

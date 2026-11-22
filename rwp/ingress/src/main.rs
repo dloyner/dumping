@@ -1,4 +1,5 @@
-use std::{ffi::OsStr, path::Path};
+use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Router,
@@ -7,7 +8,11 @@ use axum::{
     routing::get,
 };
 use rust_embed::RustEmbed;
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
+#[cfg(debug_assertions)]
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
+use tower_http::timeout::TimeoutLayer;
 use tracing::Level;
 
 use auth_dal::{
@@ -15,7 +20,6 @@ use auth_dal::{
     users::descriptors::SqlxPostgresDescriptor as AuthPostgresDescriptor,
 };
 use auth_server::api::RedisSessionDescriptor;
-use auth_server::api::router as auth_router;
 use glue::{
     db::pool_from_env,
     log::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer, logger::init_logger},
@@ -24,11 +28,37 @@ use to_do_axum_server::api as todo_api;
 use to_do_dal::migrations::run_migrations as run_todo_migrations;
 use to_do_dal::to_do_items::descriptors::SqlxPostgresDescriptor;
 
-const INDEX_HTML: &str = include_str!("../index.html");
+const INDEX_HTML: &str = include_str!("../../frontend/public/index.html");
 const NOT_FOUND: (StatusCode, &str) = (StatusCode::NOT_FOUND, "404 Not Found");
+
+fn rate_limited<S>(router: Router<S>, per_second: u64, burst_size: u32) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    let config = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(per_second)
+            .burst_size(burst_size)
+            .use_headers()
+            .finish()
+            .expect("valid auth rate limit"),
+    );
+
+    let limiter = config.limiter().clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            limiter.retain_recent();
+        }
+    });
+
+    router.layer(GovernorLayer::new(config))
+}
 
 #[derive(RustEmbed)]
 #[folder = "../frontend/public"]
+#[exclude = "*.map"]
 struct FrontendAssets;
 
 async fn index() -> Html<&'static str> {
@@ -36,14 +66,11 @@ async fn index() -> Html<&'static str> {
 }
 
 fn serve_frontend_asset(path: &str) -> Response {
-    let Some(file) = Path::new(path).file_name().and_then(OsStr::to_str) else {
-        return NOT_FOUND.into_response();
-    };
-    let Some(asset) = FrontendAssets::get(file) else {
+    let Some(asset) = FrontendAssets::get(path) else {
         return NOT_FOUND.into_response();
     };
 
-    let mime = mime_guess::from_path(file)
+    let mime = mime_guess::from_path(path)
         .first_or_octet_stream()
         .to_string();
 
@@ -58,56 +85,88 @@ fn serve_frontend_asset(path: &str) -> Response {
 }
 
 async fn catch_all(uri: Uri) -> Response {
-    let path = uri.path();
-
-    if path.starts_with("/api/") {
-        return (StatusCode::NOT_FOUND, "Not Found").into_response();
+    let path = uri.path().trim_start_matches('/');
+    if path.starts_with("api/") {
+        return NOT_FOUND.into_response();
     }
-    if path.contains("frontend/public") {
-        return serve_frontend_asset(path);
-    }
-
-    let wants_html = mime_guess::from_path(path)
-        .first_raw()
-        .is_none_or(|mime| mime == "text/html");
-
-    if wants_html {
-        Html(INDEX_HTML).into_response()
-    } else {
-        serve_frontend_asset(path)
+    match FrontendAssets::get(path) {
+        Some(_) => serve_frontend_asset(path),
+        None if path.contains('.') => NOT_FOUND.into_response(),
+        None => Html(INDEX_HTML).into_response(),
     }
 }
 
 fn app(todo_store: SqlxPostgresDescriptor, auth_store: AuthPostgresDescriptor) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    type Session = RedisSessionDescriptor<AuthPostgresDescriptor>;
 
-    Router::new()
+    let auth_state = auth_server::api::AppState::new(
+        auth_store.clone(),
+        RedisSessionDescriptor::new(auth_store.clone()),
+    );
+    let auth_routes = Router::new()
+        .merge(rate_limited(
+            auth_server::api::auth::auth_router::<AuthPostgresDescriptor, Session>(),
+            12,
+            5,
+        ))
+        .merge(rate_limited(
+            auth_server::api::users::create_router::<AuthPostgresDescriptor, Session>(),
+            3_600,
+            3,
+        ))
+        .merge(auth_server::api::users::get_router::<
+            AuthPostgresDescriptor,
+            Session,
+        >());
+    let auth_routes = Router::new()
+        .nest("/api/v1", auth_routes)
+        .with_state(auth_state);
+
+    let app = Router::new()
         .route("/", get(index))
+        .route("/healthz", get(|| async { StatusCode::OK }))
         .merge(todo_api::basic_actions::basic_actions_router_core_postgres(
             todo_store,
             auth_store.clone(),
         ))
-        .merge(auth_router(auth_server::api::AppState::new(
-            auth_store.clone(),
-            RedisSessionDescriptor::new(auth_store),
-        )))
+        .merge(auth_routes)
         .fallback(catch_all)
-        .layer(cors)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
                 .on_request(DefaultOnRequest::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
-        )
+        );
+    let app = app.layer(TimeoutLayer::with_status_code(
+        StatusCode::REQUEST_TIMEOUT,
+        Duration::from_secs(30),
+    ));
+    let app = app.layer(SetResponseHeaderLayer::if_not_present(
+        header::CONTENT_SECURITY_POLICY,
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            .parse::<axum::http::HeaderValue>()
+            .unwrap(),
+    ));
+    #[cfg(debug_assertions)]
+    let app = app.layer(
+        CorsLayer::new()
+            .allow_origin(
+                "http://localhost:3000"
+                    .parse::<axum::http::HeaderValue>()
+                    .unwrap(),
+            )
+            .allow_methods(Any)
+            .allow_headers(Any),
+    );
+    app
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     init_logger();
+    glue::token::HeaderToken::validate_secret()?;
+    auth_kernel::cache_api_url()?;
     let pool = pool_from_env("TO_DO")?;
     run_todo_migrations(&pool).await?;
     let auth_pool = pool_from_env("AUTH")?;
@@ -120,33 +179,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let todo_store = SqlxPostgresDescriptor::new(pool);
     let auth_store = AuthPostgresDescriptor::new(auth_pool);
-    axum::serve(listener, app(todo_store, auth_store)).await?;
+    axum::serve(
+        listener,
+        app(todo_store, auth_store).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("shutdown signal received");
+    })
+    .await?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+
     use axum::{
+        Extension,
         body::Body,
+        extract::ConnectInfo,
         http::{Method, Request, StatusCode},
     };
     use tower::ServiceExt;
 
     use super::{AuthPostgresDescriptor, app};
-    use glue::{db::create_pool, token::HeaderToken};
+    use glue::db::create_pool;
     use to_do_dal::to_do_items::descriptors::SqlxPostgresDescriptor;
-
-    fn auth_token() -> String {
-        static INIT: std::sync::Once = std::sync::Once::new();
-        INIT.call_once(|| {
-            unsafe { std::env::set_var("JWT_SECRET", "test-secret") };
-        });
-        HeaderToken {
-            unique_id: "test-user".into(),
-        }
-        .encode()
-        .unwrap()
-    }
 
     fn test_app() -> axum::Router {
         let todo_pool = create_pool("postgres://test:test@127.0.0.1/todo_test", 1).unwrap();
@@ -155,11 +214,26 @@ mod tests {
             SqlxPostgresDescriptor::new(todo_pool),
             AuthPostgresDescriptor::new(auth_pool),
         )
+        .layer(Extension(ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        )))))
     }
 
     #[tokio::test]
     async fn serves_the_frontend_shell_and_assets() {
         let app = test_app();
+        let health = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/healthz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
         let response = app
             .clone()
             .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
@@ -215,20 +289,18 @@ mod tests {
 
     #[tokio::test]
     async fn routes_api_requests_and_returns_404_for_unknown_api_paths() {
-        let token = auth_token();
         let invalid_json = test_app()
             .oneshot(
                 Request::builder()
                     .method(Method::POST)
                     .uri("/api/v1/create")
                     .header("content-type", "application/json")
-                    .header("token", &token)
                     .body(Body::from("not-json"))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(invalid_json.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(invalid_json.status(), StatusCode::UNAUTHORIZED);
 
         let missing_route = test_app()
             .oneshot(
@@ -246,7 +318,7 @@ mod tests {
                 Request::builder()
                     .method(Method::OPTIONS)
                     .uri("/api/v1/create")
-                    .header("origin", "https://example.test")
+                    .header("origin", "http://localhost:3000")
                     .header("access-control-request-method", "POST")
                     .body(Body::empty())
                     .unwrap(),
@@ -254,11 +326,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(cors.status(), StatusCode::OK);
-        assert_eq!(cors.headers()["access-control-allow-origin"], "*");
+        assert_eq!(
+            cors.headers()["access-control-allow-origin"],
+            "http://localhost:3000"
+        );
     }
 
     #[tokio::test]
     async fn logout_requires_a_valid_token_header() {
+        static INIT_SECRET: std::sync::Once = std::sync::Once::new();
+        INIT_SECRET.call_once(|| unsafe {
+            std::env::set_var("JWT_SECRET", "ingress-test-secret-32-bytes-long");
+        });
+
         let missing_token = test_app()
             .oneshot(
                 Request::builder()
@@ -276,12 +356,44 @@ mod tests {
                 Request::builder()
                     .method(Method::POST)
                     .uri("/api/v1/auth/logout")
-                    .header("token", "not-a-jwt")
+                    .header("Authorization", "Bearer not-a-jwt")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(invalid_token.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_routes_are_rate_limited_by_peer_ip() {
+        let app = test_app();
+        for _ in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri("/api/v1/auth/login")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+
+        let limited = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/v1/auth/login")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(limited.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(limited.headers().contains_key("retry-after"));
     }
 }

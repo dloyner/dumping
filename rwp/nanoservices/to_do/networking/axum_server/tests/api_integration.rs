@@ -117,7 +117,7 @@ impl DeleteOne for MemoryStore {
 impl UpdateOne for MemoryStore {
     async fn update_one(
         &self,
-        item: ToDoItem,
+        item: to_do_dal::to_do_items::schema::UpdateToDoStatus,
         user_id: &str,
     ) -> Result<ToDoItem, NanoServiceError> {
         let mut store = self.0.lock().unwrap();
@@ -128,8 +128,9 @@ impl UpdateOne for MemoryStore {
                 NanoServiceErrorStatus::NotFound,
             ));
         }
-        store.insert(key, item.clone());
-        Ok(item)
+        let stored = store.get_mut(&key).expect("checked above");
+        stored.status = item.status;
+        Ok(stored.clone())
     }
 }
 
@@ -149,7 +150,7 @@ async fn send(
         request = request.header("content-type", "application/json");
     }
     if let Some(token) = token {
-        request = request.header("token", token);
+        request = request.header("Authorization", format!("Bearer {token}"));
     }
     let body = body.map_or_else(Body::empty, |body| Body::from(body.to_string()));
     app.clone()
@@ -216,7 +217,7 @@ async fn api_routes_cover_item_lifecycle_auth_and_user_isolation() {
         &app,
         Method::PATCH,
         "/api/v1/update",
-        Some(json!({"id": 99999, "title": "missing", "status": "DONE"})),
+        Some(json!({"id": 99999, "status": "DONE"})),
         Some(&token),
     )
     .await;
@@ -236,7 +237,7 @@ async fn api_routes_cover_item_lifecycle_auth_and_user_isolation() {
         &app,
         Method::PATCH,
         "/api/v1/update",
-        Some(json!({"id": id, "title": "api-wire-integration", "status": "DONE"})),
+        Some(json!({"id": id, "status": "DONE"})),
         None,
     )
     .await;
@@ -246,12 +247,14 @@ async fn api_routes_cover_item_lifecycle_auth_and_user_isolation() {
         &app,
         Method::PATCH,
         "/api/v1/update",
-        Some(json!({"id": id, "title": "api-wire-integration", "status": "DONE"})),
+        Some(json!({"id": id, "status": "DONE"})),
         Some(&token),
     )
     .await;
     assert_eq!(updated.status(), StatusCode::OK);
-    assert_eq!(response_json(updated).await["done"][0]["id"], id);
+    let updated = response_json(updated).await;
+    assert_eq!(updated["done"][0]["id"], id);
+    assert_eq!(updated["done"][0]["title"], "api-wire-integration");
 
     let deleted = send(
         &app,

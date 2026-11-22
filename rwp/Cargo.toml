@@ -14,10 +14,16 @@ members = [
   "nanoservices/to_do/core",
   "nanoservices/to_do/dal",
   "nanoservices/to_do/networking/axum_server",
-  "nanoservices/user-session-cache/cache-client", "nanoservices/user-session-cache/cache-module",
+  "nanoservices/user-session-cache/cache-client",
+  "nanoservices/user-session-cache/cache-module",
 ]
 
 [workspace.dependencies]
+argon2 = { version = "0.6.0", features = ["password-hash"] }
+jsonwebtoken = "9.3.0"
+redis = { version = "1.8.2", features = ["tokio-comp", "connection-manager"] }
+thiserror = "2"
+uuid = { version = "1.29.2", features = ["serde", "v4"] }
 dotenvy = "0.15.7"
 serde = { version = "1.0.229", features = ["derive"] }
 axum = "0.8.9"
@@ -35,6 +41,12 @@ tracing = "0.1"
 chrono = "0.4.45"
 reqwest = { version = "0.13.5", features = ["json"] }
 tower-http = { version = "0.7.1", features = ["trace"] }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+correctness = "deny"
 
 [profile.release]
 opt-level = 3

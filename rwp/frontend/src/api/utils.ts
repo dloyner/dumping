@@ -18,7 +18,7 @@ async function handleRequest<X>(
 			...config,
 			headers: {
 				"Content-Type": "application/json",
-				token: getToken(),
+				Authorization: `Bearer ${getToken()}`,
 				...config.headers,
 			},
 			validateStatus: () => true,

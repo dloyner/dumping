@@ -3,21 +3,26 @@ name = "ingress"
 version = "0.1.0"
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 auth_server = { path = "../nanoservices/auth/networking/axum_server/", package = "auth-axum-server" }
 auth_dal = { path = "../nanoservices/auth/dal/", package = "auth-dal" }
-rust-embed = "8.13.0"
+auth-kernel = { path = "../nanoservices/auth/kernel/", features = ["core-postgres"] }
+rust-embed = { version = "8.13.0", features = ["include-exclude"] }
 mime_guess = "2.0.5"
 axum.workspace = true
 tokio.workspace = true
 dotenvy.workspace = true
 tracing.workspace = true
-tower-http = { workspace = true, features = ["cors"] }
+tower-http = { workspace = true, features = ["cors", "set-header", "timeout"] }
+tower_governor = "0.8"
 to-do-dal = { path = "../nanoservices/to_do/dal/", features = [
   "sqlx-postgres",
 ] }
 to-do-axum-server = { path = "../nanoservices/to_do/networking/axum_server/" }
-glue = { path = "../glue", features = ["sqlx", "elastic-logger"] }
+glue = { path = "../glue", features = ["sqlx"] }
 
 [dev-dependencies]
 tower.workspace = true

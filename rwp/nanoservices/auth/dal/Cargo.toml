@@ -3,9 +3,13 @@ name = "auth-dal"
 version = "0.1.0"
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 serde.workspace = true
+tracing.workspace = true
 sqlx.workspace = true
-argon2 = { version = "0.6.0", features = ["password-hash"] }
-uuid = { version = "1.29.2", features = ["serde", "v4"] }
+argon2.workspace = true
+uuid.workspace = true
 glue = { path = "../../../glue/", features = ["sqlx"] }

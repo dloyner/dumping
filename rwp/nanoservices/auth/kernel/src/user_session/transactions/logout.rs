@@ -13,7 +13,25 @@ pub trait LogoutUserSession {
     ) -> impl Future<Output = Result<(), NanoServiceError>> + Send;
 }
 
+#[cfg(feature = "core-postgres")]
 impl<T: Sync> LogoutUserSession for RedisSessionDescriptor<T> {
+    async fn logout_user_session(
+        &self,
+        address: &str,
+        user_id: &str,
+    ) -> Result<(), NanoServiceError> {
+        match cache_logout(address, user_id).await?.as_str() {
+            "OK" | "NOT_FOUND" => Ok(()),
+            other => Err(NanoServiceError::new(
+                format!("Unexpected Redis logout response: {other}"),
+                NanoServiceErrorStatus::Unknown,
+            )),
+        }
+    }
+}
+
+#[cfg(all(feature = "http", not(feature = "core-postgres")))]
+impl LogoutUserSession for RedisSessionDescriptor {
     async fn logout_user_session(
         &self,
         address: &str,

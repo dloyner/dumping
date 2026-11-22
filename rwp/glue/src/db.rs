@@ -17,6 +17,7 @@ pub fn db_error(e: sqlx::Error) -> NanoServiceError {
 pub fn create_pool(url: &str, max_connections: u32) -> Result<PgPool, NanoServiceError> {
     PgPoolOptions::new()
         .max_connections(max_connections)
+        .acquire_timeout(std::time::Duration::from_secs(5))
         .connect_lazy(url)
         .map_err(db_error)
 }

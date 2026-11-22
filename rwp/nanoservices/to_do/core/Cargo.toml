@@ -3,14 +3,12 @@ name = "to-do-core"
 version = "0.1.0"
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 to-do-dal = { path = "../dal" }
-auth-kernel = { path = "../../auth/kernel/" }
 glue = { path = "../../../glue" }
 
 [dev-dependencies]
 tokio.workspace = true
-
-[features]
-memory = ["auth-kernel/core-postgres"]
-http = ["auth-kernel/http"]

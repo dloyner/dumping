@@ -9,13 +9,16 @@ interface LoginFormProps {
 export const LoginForm: React.FC<LoginFormProps> = ({ setToken }) => {
 	const [email, setEmail] = React.useState<string>("");
 	const [password, setPassword] = React.useState<string>("");
-	const submitLogin = () => {
+	const [error, setError] = React.useState<string | null>(null);
+	const submitLogin = (event: React.FormEvent) => {
+		event.preventDefault();
 		login(email, password)
 			.then((response) => {
+				setError(null);
 				setToken(response);
 			})
 			.catch((error) => {
-				console.error(error);
+				setError("Login failed. Check your email and password, then try again.");
 			});
 	};
 	const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,10 +28,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ setToken }) => {
 		setEmail(e.target.value);
 	};
 	return (
-		<div className="login">
+		<form className="login" onSubmit={submitLogin}>
 			<h1 className="login-title">Login</h1>
+			{error && <p className="appError" role="alert">{error}</p>}
 			<input
-				type="text"
+				type="email"
+				autoComplete="username"
 				className="login-input"
 				placeholder="Email"
 				autoFocus
@@ -37,14 +42,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ setToken }) => {
 			/>
 			<input
 				type="password"
+				autoComplete="current-password"
 				className="login-input"
 				placeholder="Password"
 				onChange={handlePasswordChange}
 				value={password}
 			/>
-			<button className="login-button" id="login-button" onClick={submitLogin}>
+			<button className="login-button" id="login-button" type="submit">
 				Let's go
 			</button>
-		</div>
+		</form>
 	);
 };

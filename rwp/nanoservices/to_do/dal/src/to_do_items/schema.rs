@@ -18,6 +18,12 @@ pub struct NewToDoItem {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdateToDoStatus {
+    pub id: i32,
+    pub status: TaskStatus,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllTodoItems {
     pub pending: Vec<ToDoItem>,
     pub done: Vec<ToDoItem>,

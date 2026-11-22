@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
 cd "$ROOT/frontend"
 bun install
+bun run wasm
 bun run build
 
 cd "$ROOT"

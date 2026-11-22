@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing::Level;
 
@@ -13,6 +14,8 @@ use glue::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     init_logger();
+    glue::token::HeaderToken::validate_secret()?;
+    auth_kernel::cache_api_url()?;
     let host = std::env::var("AUTH_WEB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("AUTH_WEB_PORT").unwrap_or_else(|_| "8081".to_string());
     let address = format!("{host}:{port}");
@@ -34,6 +37,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     tracing::info!(%address, "auth server listening");
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

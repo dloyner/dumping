@@ -32,7 +32,7 @@ export const ToDoItem: FC<ToDoItemProps> = ({
 
 		try {
 			const response = isPending
-				? await updateToDoItemCall(id, title, TaskStatus.DONE)
+				? await updateToDoItemCall(id, TaskStatus.DONE)
 				: await deleteToDoItemCall(id);
 
 			passBackResponse(response);

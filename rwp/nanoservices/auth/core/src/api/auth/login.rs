@@ -15,8 +15,16 @@ pub async fn login<T: GetByEmail>(
     store: &T,
     email: &str,
     password: String,
-) -> Result<String, NanoServiceError> {
-    let user = match store.get_by_email(email).await {
+) -> Result<(String, User), NanoServiceError> {
+    let email = email.trim().to_lowercase();
+    if email.len() > 254 || !email.contains('@') {
+        return Err(NanoServiceError::new(
+            "invalid email",
+            NanoServiceErrorStatus::BadRequest,
+        ));
+    }
+
+    let user = match store.get_by_email(&email).await {
         Ok(user) => user,
         Err(e) if e.status == NanoServiceErrorStatus::NotFound => {
             tokio::task::spawn_blocking(move || User::verify_dummy_password(&password))
@@ -27,16 +35,18 @@ pub async fn login<T: GetByEmail>(
         Err(e) => return Err(e),
     };
 
-    let (verified, unique_id) = tokio::task::spawn_blocking(move || {
-        user.verify_password(&password)
-            .map(|ok| (ok, user.unique_id))
-    })
-    .await
-    .eject(NanoServiceErrorStatus::Unknown)??;
+    let verifier = user.clone();
+    let verified = tokio::task::spawn_blocking(move || verifier.verify_password(&password))
+        .await
+        .eject(NanoServiceErrorStatus::Unknown)??;
 
     if !verified {
         return Err(invalid_credentials());
     }
 
-    HeaderToken { unique_id }.encode()
+    let token = HeaderToken {
+        unique_id: user.unique_id.clone(),
+    }
+    .encode()?;
+    Ok((token, user))
 }
