@@ -95,12 +95,17 @@ mod axum_impl {
                 ));
             };
 
-            let token = token.strip_prefix("Bearer ").ok_or_else(|| {
-                NanoServiceError::new(
-                    "Invalid authorization scheme",
-                    NanoServiceErrorStatus::Unauthorized,
-                )
-            })?;
+            let token = token
+                .split_once(' ')
+                .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+                .map(|(_, t)| t.trim())
+                .ok_or_else(|| {
+                    NanoServiceError::new(
+                        "Invalid authorization scheme",
+                        NanoServiceErrorStatus::Unauthorized,
+                    )
+                })?;
+
             HeaderToken::decode(token)
         }
     }

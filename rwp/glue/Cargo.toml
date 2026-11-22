@@ -8,9 +8,6 @@ workspace = true
 
 [dependencies]
 serde.workspace = true
-serde_json = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 thiserror.workspace = true

@@ -4,9 +4,21 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: 1.100.0
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:18
@@ -23,32 +35,67 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.100.0
+
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
       - uses: oven-sh/setup-bun@v2
+
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
-          version: latest
+          version: v0.15.1
+
       - name: Build frontend assets
         working-directory: frontend
         run: |
           bun install --frozen-lockfile
           bun run wasm
           bun run build
+
       - name: Rust formatting
         run: cargo fmt --all -- --check
+
       - name: Rust lint
         run: |
           cargo clippy --workspace --all-targets -- -D warnings
           cargo check -p auth-kernel --no-default-features --features http
+
       - name: Rust tests
         env:
           DATABASE_URL: postgres://username:password@localhost:5432/to_do
         run: cargo test --workspace
+
       - name: Frontend checks
         working-directory: frontend
         run: |
           bun test
           bun run typecheck
+
+  redis-module:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build cache-module image
+        run: >-
+          docker build
+          -f nanoservices/user-session-cache/cache-module/Dockerfile
+          -t cache-module-ci .
+
+      - name: Redis loads the module
+        run: |
+          docker run -d --name cache-ci cache-module-ci \
+            redis-server --loadmodule ./libcache_module.so --requirepass ci-password
+          for _ in $(seq 1 20); do
+            docker exec cache-ci redis-cli -a ci-password --no-auth-warning ping 2>/dev/null | grep -q PONG && exit 0
+            sleep 1
+          done
+          echo "Redis did not become ready; container logs:" >&2
+          docker logs cache-ci >&2
+          exit 1

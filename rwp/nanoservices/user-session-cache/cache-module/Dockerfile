@@ -1,4 +1,4 @@
-FROM rust:1.100 AS build
+FROM rust:1.100-bookworm AS build
 ENV PKG_CONFIG_ALLOW_CROSS=1
 
 RUN apt-get update && apt-get install libclang-dev -y
@@ -7,7 +7,7 @@ WORKDIR /app
 COPY . .
 RUN cargo build --release --package cache-module
 
-FROM redis:7.4.2
+FROM redis:7.4.2-bookworm
 
 COPY --from=build \
 /app/target/release/libcache_module.so \

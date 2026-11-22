@@ -161,6 +161,23 @@ fn app(todo_store: SqlxPostgresDescriptor, auth_store: AuthPostgresDescriptor) -
     app
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        if let Ok(mut s) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
+            s.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! { _ = ctrl_c => {}, _ = term => {} }
+    tracing::info!("shutdown signal received");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
@@ -183,10 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         listener,
         app(todo_store, auth_store).into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
-        tracing::info!("shutdown signal received");
-    })
+    .with_graceful_shutdown(shutdown_signal())
     .await?;
     Ok(())
 }
