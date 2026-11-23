@@ -6,3 +6,12 @@ target
 **/target
 frontend/node_modules
 frontend/dist
+builds/
+.git/
+.env
+.env.*
+!.env.example
+aws_access_key.txt
+.terraform/
+terraform.tfstate*
+known_hosts

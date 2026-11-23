@@ -18,3 +18,9 @@ frontend/public/bundle.css
 # Local test / tooling output
 basic_test_output.txt
 postgres-language-server.jsonc
+
+# Deployment
+aws_access_key.txt
+.terraform/
+known_hosts
+terraform.tfstate*
