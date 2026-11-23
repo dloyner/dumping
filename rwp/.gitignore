@@ -3,4 +3,6 @@ bun
 basic_test_output.txt
 postgres-language-server.jsonc
 .env
-pkg/
+**/pkg/
+*.wasm
+*.wat
