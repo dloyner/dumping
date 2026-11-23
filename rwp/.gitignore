@@ -1,8 +1,20 @@
-bun
-/target
-basic_test_output.txt
-postgres-language-server.jsonc
+# Secrets / environment
 .env
-**/pkg/
+
+# Rust build output
+/target
+
+# Bun
+bun
+
+# wasm-pack output
+frontend/rust-interface/pkg/
 *.wasm
 *.wat
+
+# Frontend bundler output
+frontend/public/bundle.css
+
+# Local test / tooling output
+basic_test_output.txt
+postgres-language-server.jsonc
