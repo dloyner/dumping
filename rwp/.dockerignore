@@ -6,12 +6,12 @@ target
 **/target
 frontend/node_modules
 frontend/dist
+frontend/rust-interface/pkg
+frontend/public/bundle.js*
+frontend/public/bundle.css*
 builds/
-.git/
-.env
-.env.*
-!.env.example
 aws_access_key.txt
+*.pem
 .terraform/
 terraform.tfstate*
 known_hosts

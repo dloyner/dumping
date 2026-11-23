@@ -1,17 +1,21 @@
 # Build and runtime library paths for Linux AMD64 (x86_64).
+ARG BUN_VERSION=1
+FROM oven/bun:${BUN_VERSION} AS bun
+
 FROM rust:1.100-bookworm AS build
 
 RUN apt-get update && apt-get install -y libpq-dev
 RUN apt-get install libssl-dev -y
 
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 RUN cargo install wasm-pack
 
 WORKDIR /app
 COPY . .
-RUN cd ingress/frontend && npm install && npm run build
+ARG INGRESS_URL=http://localhost:8001
+RUN cd frontend && bun install --frozen-lockfile && bun run wasm && INGRESS_URL="$INGRESS_URL" bun run build
 RUN cargo build --release -p ingress
 RUN cargo build --release -p to-do-axum-server --features=auth-http --no-default-features
 RUN cargo build --release -p auth-axum-server
@@ -54,4 +58,3 @@ EXPOSE 8081
 EXPOSE 8080
 
 CMD ["ingress"]
-

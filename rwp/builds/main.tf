@@ -3,7 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.62.0, < 7.0.0"
+      version = ">= 5.62.0, < 6.0.0"
     }
   }
 }
@@ -12,14 +12,25 @@ provider "aws" {
   region = "ap-southeast-1"
 }
 
+# Resolve the current Amazon Linux 2023 x86_64 image in the configured region.
+data "aws_ssm_parameter" "al2023_x86_64" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+}
+
 variable "ssh_cidr" {
   description = "CIDR allowed to SSH into the build server"
   type        = string
 
   validation {
-    condition     = can(cidrhost(var.ssh_cidr, 0)) && var.ssh_cidr != "0.0.0.0/0"
+    condition     = can(cidrnetmask(var.ssh_cidr)) && var.ssh_cidr != "0.0.0.0/0"
     error_message = "ssh_cidr must be a valid CIDR block and must not be 0.0.0.0/0"
   }
+}
+
+variable "ssh_key_name" {
+  description = "Name of the existing EC2 key pair in the configured region"
+  type        = string
+  default     = "rwp_remotebuild"
 }
 
 resource "aws_security_group" "build_server" {
@@ -52,9 +63,9 @@ resource "aws_security_group" "build_server" {
 }
 
 resource "aws_instance" "build_server" {
-  ami           = "ami-026b70e9abd9fa20f"
+  ami           = data.aws_ssm_parameter.al2023_x86_64.value
   instance_type = "m7i-flex.large"
-  key_name      = "rwp_remotebuild"
+  key_name      = var.ssh_key_name
 
   vpc_security_group_ids      = [aws_security_group.build_server.id]
   associate_public_ip_address = true
@@ -64,6 +75,7 @@ resource "aws_instance" "build_server" {
 
   root_block_device {
     volume_size = 30
+    encrypted   = true
   }
 
   metadata_options {

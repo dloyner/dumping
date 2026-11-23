@@ -1,5 +1,7 @@
 # Secrets / environment
 .env
+.env.*
+!.env.example
 
 # Rust build output
 /target
@@ -21,6 +23,12 @@ postgres-language-server.jsonc
 
 # Deployment
 aws_access_key.txt
+*.pem
 .terraform/
 known_hosts
 terraform.tfstate*
+builds/ingress.bin
+builds/tfplan
+
+# Misc
+fine_grind.md

@@ -1,0 +1,16 @@
+# nanoservices/auth/build-config.yml
+services:
+  auth:
+    image: compute-unit
+    environment:
+      AUTH_WEB_HOST: 0.0.0.0
+      AUTH_DB_URL: ${AUTH_DOCKER_DB_URL}
+      CACHE_API_URL: ${CACHE_DOCKER_URL}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    ports:
+      - "8081:8081"
+    command: ["auth-axum-server"]
+
+    depends_on:
+      postgres:
+        condition: service_healthy

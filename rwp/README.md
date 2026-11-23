@@ -1,6 +1,6 @@
 # Rust Web Programming
 
-A rust web following Maxwell Flitton's _Rust Web Programming_.
+A Rust web application following Maxwell Flitton's _Rust Web Programming_ (3rd Edition).
 
 ## Architecture
 
@@ -92,6 +92,21 @@ overwrites those headers and ingress cannot be reached directly.
 
 ## Run locally
 
+### Configuration
+
+Copy `.env.example` to `.env` once and keep local and Docker settings there.
+The `*_DB_URL` and `*_API_URL` values without a `DOCKER` marker are for
+processes running on the host. The `*_DOCKER_*` values use Compose service DNS
+names such as `postgres`, `auth`, and `to_do`; deployment fragments read those
+values from the same `.env`. Set `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, and
+`JWT_SECRET` there, and keep the passwords embedded in database and Redis URLs
+in sync with their corresponding password variables.
+
+`INGRESS_URL` is used when compiling the frontend for the local dev server.
+The frontend served by ingress or Nginx uses same-origin or internal proxy
+routes instead. Nginx upstream URLs are supplied through `.env` and expanded
+when each Nginx container starts.
+
 ### Prerequisites
 
 - Docker with the Docker Compose plugin
@@ -99,6 +114,8 @@ overwrites those headers and ingress cannot be reached directly.
 - [Bun](https://bun.sh/) for building and serving the frontend
 - [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) and the `wasm32-unknown-unknown` Rust target
 - `xh` to use the user creation helper
+- Container builds and the remote build server also use Bun (no Node.js or npm
+  needed) plus `wasm-pack`; the Rust target comes from `rust-toolchain.toml`
 
 ### Start the app
 
@@ -112,8 +129,8 @@ overwrites those headers and ingress cannot be reached directly.
    Redis through Docker Compose, builds the frontend, and
    builds and starts ingress in release mode on port `8001`. Ingress runs the
    auth and to-do database migrations on startup. Set a private `JWT_SECRET` in
-   `.env` before using the app. The example config uses a password protected
-   Redis URL bound to localhost.
+   `.env` before using the app. The example config binds PostgreSQL and Redis
+   to localhost.
 
 2. In another terminal, register a user:
 
@@ -169,6 +186,67 @@ RUN_POSTGRES_INTEGRATION=1 ./scripts/test.sh
 The smoke test starts the standalone to-do server on `TO_DO_WEB_PORT` (8080 by
 default). Its current API uses `title`, numeric item IDs, and `/get/{id}` and
 `/delete/{id}` routes.
+
+## Container deployment layouts
+
+The YAML files under `ingress/`, `nanoservices/`, and `frontend/` are Compose
+fragments. Run them with the root `compose.yaml` so they share its PostgreSQL
+and Redis services, and run commands from the repository root so Compose reads
+the root `.env`.
+
+### Monolith
+
+This starts one `ingress` process with embedded frontend, auth, and to-do
+routers, plus an Nginx reverse proxy:
+
+```sh
+docker compose --env-file .env \
+  -f compose.yaml -f ingress/build-config.yml up --build
+```
+
+The defaults build with `Dockerfile.x86` for `linux/amd64`. For ARM64, run:
+
+```sh
+COMPUTE_DOCKERFILE=Dockerfile.aarch COMPUTE_PLATFORM=linux/arm64 \
+  docker compose --env-file .env \
+  -f compose.yaml -f ingress/build-config.yml up --build
+```
+
+### Microservices
+
+This starts auth and to-do servers as separate processes behind frontend
+Nginx. Build the shared server image once, then combine the three fragments:
+
+```sh
+docker build --platform linux/amd64 -f Dockerfile.x86 -t compute-unit .
+docker compose --env-file .env \
+  -f compose.yaml \
+  -f nanoservices/auth/build-config.yml \
+  -f nanoservices/to_do/build-config.yml \
+  -f frontend/build-config.yml up --build
+```
+
+For ARM64, build `compute-unit` with `--platform linux/arm64 -f
+Dockerfile.aarch`. The monolith and microservice fragments intentionally use
+different process layouts, so do not combine both layouts in one Compose
+command. The root Dockerfiles produce the same runtime image for different CPU
+architectures.
+
+## Remote build server
+
+`builds/run_build.sh` uses OpenTofu by default (set `TF_BIN=terraform` to use
+Terraform), provisions an x86 EC2 build host in `ap-southeast-1`, copies the
+workspace source without `.env` or local build output, and compiles the ingress
+binary with its embedded frontend. It expects AWS credentials, the EC2 key pair
+`rwp_remotebuild`, and its private key at
+`~/.ssh/keys/rwp_remotebuild.pem` (override with `SSH_KEY_PATH`). Set `SSH_CIDR` to an IPv4 CIDR if automatic
+public-IP detection is unsuitable. The EC2 instance remains provisioned after
+the build and continues to incur AWS charges until destroyed. Provisioning
+expects a default VPC in that region. Terraform/OpenTofu keeps local state under
+`builds/terraform.tfstate`; keep that state file available for cleanup. From
+`builds/`,
+run `tofu destroy -var 'ssh_cidr=YOUR.PUBLIC.IP/32'` when it is no longer
+needed.
 
 ### API flow
 

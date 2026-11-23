@@ -151,7 +151,8 @@ fn app(todo_store: SqlxPostgresDescriptor, auth_store: AuthPostgresDescriptor) -
     let app = app.layer(
         CorsLayer::new()
             .allow_origin(
-                "http://localhost:3000"
+                std::env::var("FRONTEND_DEV_ORIGIN")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string())
                     .parse::<axum::http::HeaderValue>()
                     .unwrap(),
             )

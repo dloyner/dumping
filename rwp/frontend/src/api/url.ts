@@ -18,7 +18,11 @@ export class Url {
 	static getBaseUrl(): string {
 		const { origin } = window.location;
 		if (origin.includes("localhost:3000")) {
-			return "http://localhost:8001/";
+			const ingressUrl =
+				typeof __INGRESS_URL__ === "undefined"
+					? "http://localhost:8001"
+					: __INGRESS_URL__;
+			return `${ingressUrl.replace(/\/$/, "")}/`;
 		}
 		return `${origin}/`;
 	}

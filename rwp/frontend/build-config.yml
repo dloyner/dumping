@@ -1,0 +1,14 @@
+# frontend/build-config.yml
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        INGRESS_URL: ${INGRESS_URL}
+    ports:
+      - "80:80"
+    environment:
+      NGINX_ENVSUBST_FILTER: '^(AUTH_API_URL|TODO_API_URL)$'
+      AUTH_API_URL: ${AUTH_DOCKER_API_URL}
+      TODO_API_URL: ${TODO_DOCKER_API_URL}

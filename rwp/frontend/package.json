@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"scripts": {
 		"build": "bun esbuild.js",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "bunx --bun tsc --noEmit",
 		"test": "bun test",
 		"serve": "bunx --bun serve public",
 		"wasm": "cd rust-interface && wasm-pack build --target web && cp pkg/rust_interface_bg.wasm ../public/rust_interface_bg.wasm",
@@ -21,7 +21,7 @@
 		"serve": "^14.2.1",
 		"typescript": "^7.0.2"
 	},
-	"allowScripts": {
-		"esbuild@0.24.2": true
-	}
+	"trustedDependencies": [
+		"esbuild"
+	]
 }

@@ -8,6 +8,9 @@ esbuild
 		format: "esm",
 		define: {
 			"process.env.NODE_ENV": '"production"',
+			__INGRESS_URL__: JSON.stringify(
+				process.env.INGRESS_URL || "http://localhost:8001",
+			),
 		},
 		minify: true,
 		loader: {
