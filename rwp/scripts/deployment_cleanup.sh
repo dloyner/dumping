@@ -22,9 +22,11 @@ Options:
   --images       also remove built images (compute-unit, cache, frontend, CI leftovers)
   --tofu         run `tofu destroy` in builds/ to remove the EC2 build server
                  (set TF_BIN=terraform to use Terraform, SSH_CIDR / AWS_REGION to override)
-  --local-files  delete builds/known_hosts, builds/ingress.bin and builds/tfplan
-                 (terraform.tfstate is never deleted)
-  --all          --volumes --images --tofu --local-files
+  --prod         run `tofu destroy` in deployment/: DELETES the production EC2 server
+                 and the RDS database with all its data. Never part of --all.
+  --local-files  delete builds/{known_hosts,ingress.bin,tfplan} and
+                 deployment/{known_hosts,tfplan} (terraform.tfstate is never deleted)
+  --all          --volumes --images --tofu --local-files (not --prod)
   --dry-run      print the commands without running them
   --yes          do not ask for confirmation
   -h, --help     show this help
@@ -34,6 +36,7 @@ EOF
 VOLUMES=0
 IMAGES=0
 TOFU=0
+PROD=0
 LOCAL_FILES=0
 DRY_RUN=0
 ASSUME_YES=0
@@ -43,6 +46,7 @@ while (($#)); do
     --volumes) VOLUMES=1 ;;
     --images) IMAGES=1 ;;
     --tofu) TOFU=1 ;;
+    --prod) PROD=1 ;;
     --local-files) LOCAL_FILES=1 ;;
     --all)
       VOLUMES=1
@@ -81,8 +85,9 @@ echo "  - stop and remove all Compose containers/networks (monolith + microservi
 ((VOLUMES)) && echo "  - DELETE Docker volumes, including PostgreSQL data"
 ((IMAGES)) && echo "  - remove built Docker images"
 ((TOFU)) && echo "  - DESTROY the EC2 build server with ${TF_BIN:-tofu} (builds/)"
-((LOCAL_FILES)) && echo "  - delete builds/known_hosts, builds/ingress.bin, builds/tfplan"
-echo "Kept: .env, terraform.tfstate, source code$( ((VOLUMES)) || echo ', database volumes')."
+((PROD)) && echo "  - DESTROY the PRODUCTION server and the RDS DATABASE (deployment/) with ${TF_BIN:-tofu}"
+((LOCAL_FILES)) && echo "  - delete local build/deployment artifacts (known_hosts, ingress.bin, tfplan)"
+echo "Kept: .env, .env.production, terraform.tfstate, source code$( ((VOLUMES)) || echo ', database volumes')."
 
 if ((!ASSUME_YES && !DRY_RUN)); then
   read -r -p "Type CLEANUP to continue: " confirmation
@@ -164,10 +169,46 @@ if ((TOFU)); then
   fi
 fi
 
+# --- 2b. Production stack (EC2 + RDS) ----------------------------------------
+if ((PROD)); then
+  TF_BIN="${TF_BIN:-tofu}"
+  REGION="${AWS_REGION:-ap-southeast-1}"
+  if ! command -v "$TF_BIN" >/dev/null 2>&1; then
+    echo "error: '$TF_BIN' not found in PATH" >&2
+    exit 1
+  fi
+  if [[ ! -f deployment/terraform.tfstate ]]; then
+    echo "==> No deployment/terraform.tfstate found; nothing to destroy"
+  else
+    echo "==> Destroying the production stack with $TF_BIN"
+    # destroy works from the state file; these values only have to pass variable validation.
+    run "$TF_BIN" -chdir=deployment init -input=false
+    run env "TF_VAR_ssh_cidr=${SSH_CIDR:-203.0.113.1/32}" \
+      "TF_VAR_db_password=${DB_PASSWORD:-destroy-placeholder-0}" \
+      ${AWS_REGION:+"TF_VAR_aws_region=$AWS_REGION"} \
+      "$TF_BIN" -chdir=deployment destroy -input=false -auto-approve
+
+    if ((!DRY_RUN)) && command -v aws >/dev/null 2>&1; then
+      servers="$(aws ec2 describe-instances --region "$REGION" \
+        --filters "Name=tag:Name,Values=to-do production server" \
+        "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+        --query 'Reservations[].Instances[].InstanceId' --output text || true)"
+      databases="$(aws rds describe-db-instances --region "$REGION" \
+        --query "DBInstances[?starts_with(DBInstanceIdentifier, 'todo-')].DBInstanceIdentifier" \
+        --output text || true)"
+      if [[ -n "$servers$databases" ]]; then
+        echo "WARNING: resources still exist in $REGION: $servers $databases" >&2
+      else
+        echo "Verified: no production server or database remains in $REGION"
+      fi
+    fi
+  fi
+fi
+
 # --- 3. Local build artifacts ------------------------------------------------
 if ((LOCAL_FILES)); then
   echo "==> Removing local build artifacts"
-  run rm -f builds/known_hosts builds/ingress.bin builds/tfplan
+  run rm -f builds/known_hosts builds/ingress.bin builds/tfplan deployment/known_hosts deployment/tfplan
 fi
 
 echo "Cleanup finished."

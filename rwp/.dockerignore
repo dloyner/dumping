@@ -1,7 +1,10 @@
+
 .git
+.git/
 .env
 .env.*
 !.env.example
+**/.env.production
 target
 **/target
 frontend/node_modules
@@ -10,6 +13,7 @@ frontend/rust-interface/pkg
 frontend/public/bundle.js*
 frontend/public/bundle.css*
 builds/
+deployment/
 aws_access_key.txt
 *.pem
 .terraform/

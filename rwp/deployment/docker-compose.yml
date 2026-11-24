@@ -1,0 +1,47 @@
+# deployment/docker-compose.yml
+# Production stack, run from ~/app on the server. Every ${VAR} comes from ~/app/.env,
+# which run_deployment.sh generates. PostgreSQL is not here: it lives in RDS.
+name: todo
+
+services:
+  ingress:
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/compute-unit:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TO_DO_DB_URL: ${TO_DO_DB_URL:?set TO_DO_DB_URL}
+      AUTH_DB_URL: ${AUTH_DB_URL:?set AUTH_DB_URL}
+      CACHE_API_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@cache:6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+    expose:
+      - "8001" # reachable by nginx only, never published to the host
+    depends_on:
+      cache:
+        condition: service_healthy
+
+  cache:
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/redis-cache:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command:
+      - redis-server
+      - --loadmodule
+      - ./libcache_module.so
+      - --requirepass
+      - ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # No `ports:` on purpose: Redis is only reachable from this Compose network.
+
+  nginx:
+    image: nginx:stable
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - ingress

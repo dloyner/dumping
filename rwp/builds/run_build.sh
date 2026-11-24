@@ -83,7 +83,10 @@ COPYFILE_DISABLE=1 tar -czf - \
   --exclude='*/.env' --exclude='*/.DS_Store' \
   --exclude='*/aws_access_key.txt' --exclude='*.pem' \
   --exclude='*/builds/.terraform' --exclude='*/builds/terraform.tfstate*' \
-  --exclude='*/builds/known_hosts' \
+  --exclude='*/builds/known_hosts' --exclude='*/builds/tfplan' --exclude='*/builds/ingress.bin' \
+  --exclude='*/.env.production' --exclude='*/deployment/.terraform' \
+  --exclude='*/deployment/terraform.tfstate*' --exclude='*/deployment/known_hosts' \
+  --exclude='*/deployment/tfplan' \
   -C "$PROJECT_PARENT" "$PROJECT_NAME" \
   | ssh "${SSH_OPTS[@]}" "$REMOTE" 'tar -xzf - -C "$HOME"'
 
@@ -122,3 +125,5 @@ scp "${SSH_OPTS[@]}" "$REMOTE:$PROJECT_NAME/target/release/ingress" "$SCRIPT_DIR
 echo "Binary saved to $SCRIPT_DIR/ingress.bin"
 
 echo "Build finished on $IP_ADDRESS"
+
+
