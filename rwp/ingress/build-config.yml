@@ -24,7 +24,10 @@ services:
     image: "nginx:latest"
     ports:
       - "80:80"
+      - "443:443"
     environment:
       INGRESS_API_URL: ${INGRESS_DOCKER_API_URL}
     volumes:
       - ./ingress/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./ingress/self.crt:/etc/nginx/ssl/self.crt
+      - ./ingress/self.key:/etc/nginx/ssl/self.key
