@@ -1,0 +1,9 @@
+[package]
+name = "compute-unit"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+
+[lib]
+crate-type = ["cdylib"]

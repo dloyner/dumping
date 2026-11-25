@@ -1,0 +1,6 @@
+[workspace.package]
+edition = "2024"
+
+[workspace]
+resolver = "3"
+members = ["client", "compute-unit", "kernel", "server", "worker"]
