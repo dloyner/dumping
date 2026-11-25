@@ -185,6 +185,7 @@ if ((PROD)); then
     run "$TF_BIN" -chdir=deployment init -input=false
     run env "TF_VAR_ssh_cidr=${SSH_CIDR:-203.0.113.1/32}" \
       "TF_VAR_db_password=${DB_PASSWORD:-destroy-placeholder-0}" \
+      "TF_VAR_domain_name=${DOMAIN_NAME:?set DOMAIN_NAME}" \
       ${AWS_REGION:+"TF_VAR_aws_region=$AWS_REGION"} \
       "$TF_BIN" -chdir=deployment destroy -input=false -auto-approve
 
