@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, time::Duration};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use redis_module::{Context, RedisError, RedisResult, RedisValue, key::RedisKeyWritable};
@@ -63,6 +63,14 @@ impl UserSession {
     pub(crate) fn open_key(&self, ctx: &Context) -> RedisKeyWritable {
         let key = format!("user_session_{}", self.user_id);
         ctx.open_key_writable(&ctx.create_string(key))
+    }
+
+    pub fn touch_expiry(&self, ctx: &Context) -> Result<(), RedisError> {
+        let key = self.open_key(ctx);
+        let timeout_mins: i64 = parse_field(&key, FIELD_TIMEOUT_MINS)?;
+        let secs = u64::try_from(timeout_mins + 1).unwrap_or(60) * 60;
+        key.set_expire(Duration::from_secs(secs))?;
+        Ok(())
     }
 
     pub fn check_timeout(&self, ctx: &Context) -> Result<SessionStatus, RedisError> {

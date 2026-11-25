@@ -26,9 +26,7 @@ pub trait GetById {
 impl GetAll for SqlxPostgresDescriptor {
     async fn get_all(&self, user_id: &str) -> Result<Vec<ToDoItem>, NanoServiceError> {
         let items = sqlx::query_as::<_, ToDoItem>(
-            "SELECT t.id, t.title, t.status FROM to_do_items t \
-             INNER JOIN user_connections uc ON uc.to_do_id = t.id \
-             WHERE uc.user_id = $1 ORDER BY t.id",
+            "SELECT id, title, status FROM to_do_items WHERE user_id = $1 ORDER BY id LIMIT 1000",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -43,9 +41,7 @@ impl GetAll for SqlxPostgresDescriptor {
 impl GetById for SqlxPostgresDescriptor {
     async fn get_by_id(&self, id: i32, user_id: &str) -> Result<ToDoItem, NanoServiceError> {
         sqlx::query_as::<_, ToDoItem>(
-            "SELECT t.id, t.title, t.status FROM to_do_items t \
-             INNER JOIN user_connections uc ON uc.to_do_id = t.id \
-             WHERE uc.user_id = $1 AND t.id = $2",
+            "SELECT id, title, status FROM to_do_items WHERE user_id = $1 AND id = $2",
         )
         .bind(user_id)
         .bind(id)

@@ -9,7 +9,7 @@ services:
       CACHE_API_URL: ${CACHE_DOCKER_URL}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     command: ["to-do-axum-server"]
 
     depends_on:

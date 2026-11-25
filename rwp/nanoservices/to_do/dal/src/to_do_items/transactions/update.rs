@@ -25,10 +25,7 @@ impl UpdateOne for SqlxPostgresDescriptor {
     ) -> Result<ToDoItem, NanoServiceError> {
         sqlx::query_as::<_, ToDoItem>(
             "
-        UPDATE to_do_items
-        SET status = $3
-        WHERE id = $1
-          AND EXISTS (SELECT 1 FROM user_connections WHERE to_do_id = to_do_items.id AND user_id = $2)
+        UPDATE to_do_items SET status = $3 WHERE id = $1 AND user_id = $2 \
         RETURNING id, title, status",
         )
         .bind(item.id)

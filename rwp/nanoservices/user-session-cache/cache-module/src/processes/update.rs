@@ -23,11 +23,13 @@ pub fn update(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
 
         SessionStatus::Refresh => {
             user_session.update_last_interacted(ctx)?;
+            user_session.touch_expiry(ctx)?;
             Ok(SessionStatus::Refresh.into())
         }
 
         SessionStatus::Ok => {
             user_session.update_last_interacted(ctx)?;
+            user_session.touch_expiry(ctx)?;
 
             let perm_user_id = key
                 .hash_get(FIELD_PERM_USER_ID)?

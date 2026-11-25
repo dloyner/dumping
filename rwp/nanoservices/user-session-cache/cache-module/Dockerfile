@@ -7,7 +7,7 @@ WORKDIR /app
 COPY . .
 RUN cargo build --release --package cache-module
 
-FROM redis:7.4.2-bookworm
+FROM redis:7.4-bookworm
 
 COPY --from=build \
 /app/target/release/libcache_module.so \

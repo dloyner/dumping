@@ -30,6 +30,8 @@ pub fn login(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
     );
     key.hash_set(FIELD_COUNTER, ctx.create_string("0"));
     key.hash_set(FIELD_PERM_USER_ID, ctx.create_string(perm_user_id));
+    user_session.touch_expiry(ctx)?;
+    ctx.replicate_verbatim();
 
     Ok(RedisValue::SimpleStringStatic("OK"))
 }

@@ -5,8 +5,7 @@ use auth_core::api::auth::login::login as core_login;
 use auth_dal::users::transactions::get::GetByEmail;
 use auth_kernel::user_session::transactions::login::LoginUserSession;
 use glue::errors::NanoServiceError;
-
-const SESSION_TIMEOUT_MINS: usize = 20;
+use glue::session::SESSION_TIMEOUT_MINS;
 
 pub async fn login<T: GetByEmail, X: LoginUserSession>(
     State(state): State<AppState<T, X>>,

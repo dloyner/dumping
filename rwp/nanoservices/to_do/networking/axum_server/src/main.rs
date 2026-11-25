@@ -15,6 +15,9 @@ use auth_dal::users::descriptors::SqlxPostgresDescriptor as AuthPostgresDescript
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     init_logger();
+    glue::token::HeaderToken::validate_secret()?;
+    auth_kernel::cache_api_url()?;
+
     let host = std::env::var("TO_DO_WEB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("TO_DO_WEB_PORT").unwrap_or_else(|_| "8080".to_string());
     let address = format!("{host}:{port}");

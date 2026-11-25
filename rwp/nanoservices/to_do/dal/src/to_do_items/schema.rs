@@ -45,13 +45,6 @@ impl AllTodoItems {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "sqlx-postgres", derive(sqlx::FromRow))]
-pub struct UserConnection {
-    pub user_id: String,
-    pub to_do_id: i32,
-}
-
 #[cfg(test)]
 mod tests {
     use super::{AllTodoItems, TaskStatus, ToDoItem};

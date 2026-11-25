@@ -16,6 +16,7 @@ pub fn logout(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
         return Ok(RedisValue::SimpleStringStatic("NOT_FOUND"));
     }
     key.delete()?;
+    ctx.replicate_verbatim();
 
     Ok(RedisValue::SimpleStringStatic("OK"))
 }
