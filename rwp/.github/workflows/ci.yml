@@ -88,14 +88,36 @@ jobs:
           -f nanoservices/user-session-cache/cache-module/Dockerfile
           -t cache-module-ci .
 
-      - name: Redis loads the module
+      - name: Redis loads the module and behaves
         run: |
           docker run -d --name cache-ci cache-module-ci \
             redis-server --loadmodule ./libcache_module.so --requirepass ci-password
+          ready=""
           for _ in $(seq 1 20); do
-            docker exec cache-ci redis-cli -a ci-password --no-auth-warning ping 2>/dev/null | grep -q PONG && exit 0
+            if docker exec cache-ci redis-cli -a ci-password --no-auth-warning ping 2>/dev/null | grep -q PONG; then ready=1; break; fi
             sleep 1
           done
-          echo "Redis did not become ready; container logs:" >&2
-          docker logs cache-ci >&2
-          exit 1
+          [[ -n "$ready" ]] || { docker logs cache-ci >&2; exit 1; }
+          ./scripts/test_redis_module.sh
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
+      - uses: oven-sh/setup-bun@v2
+      - run: cd frontend && bun install --frozen-lockfile && bun audit
+
+  images:
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-placeholder-ci-placeholder-ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t compute-unit-ci .
+      - run: docker compose -f compose.yaml -f ingress/build-config.yml config -q
+      - run: >-
+          docker compose -f compose.yaml -f nanoservices/auth/build-config.yml
+          -f nanoservices/to_do/build-config.yml -f frontend/build-config.yml config -q

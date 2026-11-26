@@ -1,4 +1,3 @@
-
 .git
 .git/
 .env
@@ -16,6 +15,8 @@ builds/
 deployment/
 aws_access_key.txt
 *.pem
+ingress/self.crt
+ingress/self.key
 .terraform/
 terraform.tfstate*
 known_hosts

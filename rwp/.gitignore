@@ -26,10 +26,12 @@ postgres-language-server.jsonc
 aws_access_key.txt
 *.pem
 .terraform/
+
+# Local HTTPS development certificates
+/ingress/self.crt
+/ingress/self.key
 known_hosts
 terraform.tfstate*
 builds/ingress.bin
 builds/tfplan
-
-# Misc
-fine_grind.md
+deployment/tfplan
