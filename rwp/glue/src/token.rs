@@ -12,12 +12,14 @@ static JWT_SECRET: OnceLock<String> = OnceLock::new();
 #[derive(Serialize, Deserialize)]
 struct Claims {
     unique_id: String,
+    session_id: String,
     exp: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HeaderToken {
     pub unique_id: String,
+    pub session_id: String,
 }
 
 impl HeaderToken {
@@ -49,6 +51,7 @@ impl HeaderToken {
             + TOKEN_TTL_SECS;
         let claims = Claims {
             unique_id: self.unique_id,
+            session_id: self.session_id,
             exp,
         };
         jsonwebtoken::encode(&Header::default(), &claims, &key)
@@ -60,6 +63,7 @@ impl HeaderToken {
         jsonwebtoken::decode::<Claims>(token, &key, &Validation::new(Algorithm::HS256))
             .map(|data| HeaderToken {
                 unique_id: data.claims.unique_id,
+                session_id: data.claims.session_id,
             })
             .eject(NanoServiceErrorStatus::Unauthorized)
     }
@@ -126,11 +130,13 @@ mod tests {
         configure_secret();
         let encoded = HeaderToken {
             unique_id: "user-42".into(),
+            session_id: "user-42".into(),
         }
         .encode()
         .unwrap();
         let decoded = HeaderToken::decode(&encoded).unwrap();
         assert_eq!(decoded.unique_id, "user-42");
+        assert_eq!(decoded.session_id, "user-42");
     }
 
     #[test]
@@ -138,6 +144,7 @@ mod tests {
         configure_secret();
         let encoded = HeaderToken {
             unique_id: "user-42".into(),
+            session_id: "user-42".into(),
         }
         .encode()
         .unwrap();
