@@ -3,9 +3,7 @@
 > Study journal / tài liệu nghiên cứu cho project *Rust Web Programming* (theo sách của Maxwell Flitton).
 > Snapshot: **2026-11-25** (đã cập nhật sau đợt review, xem Phụ lục D). Mở rộng `README.md`: README nói *làm gì và chạy thế nào*, tài liệu này nói *vì sao nó được thiết kế như vậy, từng file làm gì, dữ liệu đi đâu, và chỗ nào dễ vấp*.
 
-**Phạm vi và độ tin cậy.** Nội dung được viết sau khi đọc source snapshot `rwp(1).txt` (2026-11-25) và `README.md`. Mình **chưa chạy** toàn bộ hệ thống, nên các nhận định về hành vi lúc chạy là suy ra từ code. Những chỗ suy luận mà chưa kiểm chứng được gắn nhãn **[suy luận]**. Mình không có nội dung cuốn sách, nên không khẳng định chỗ nào project khác sách. Tài liệu mô tả implementation trong snapshot đã review (ALB + ACM, một `Dockerfile` đa kiến trúc, `TRUST_PROXY`, TTL cho session Redis, cột `user_id` trực tiếp trên `to_do_items`, ...); danh sách đầy đủ ở Phụ lục D.
-
-**Trạng thái phát triển:** source hiện được đóng băng về feature; chỉ sửa bug/error hoặc lỗ hổng được xác nhận. Các mục ghi là *potential feature*, *future work* hoặc *roadmap* là đề xuất, chưa được triển khai và không nên hiểu là một phần của contract hiện tại.
+**Trạng thái phát triển:** source hiện được đóng băng về feature. Chỉ sửa bug/error hoặc lỗ hổng được xác nhận. Các mục ghi là *potential feature*, *future work* hoặc *roadmap* là đề xuất, chưa được triển khai và không nên hiểu là một phần của contract hiện tại.
 
 ---
 
