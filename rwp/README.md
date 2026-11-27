@@ -67,7 +67,7 @@ database pool to resolve Redis sessions to numeric user IDs; in the
 points (used by the microservice layout).
 
 In production, traffic reaches ingress through an AWS Application Load Balancer
-(TLS) and an Nginx container; see the
+(ALB) and an Nginx container. See the
 [deployment guide](devops_handbook.md#4-aws-production-deployment).
 
 ## Repository layout
@@ -115,7 +115,7 @@ PostgreSQL implementation is swapped in only at the edge.
 3. `cache-client` calls the Redis module. On refresh, the auth kernel looks up
    the user through the configured auth backend and refreshes the cache entry
    without changing the active `session_id`.
-4. The handler passes the user ID to `to-do-core`; the core calls `to-do-dal`,
+4. The handler passes the user ID to `to-do-core`. The core calls `to-do-dal`,
    which reads or changes only that user's rows in PostgreSQL.
 
 Auth can resolve users through the core PostgreSQL backend or the HTTP backend,
@@ -125,14 +125,14 @@ selected by the `auth-core-postgres` or `auth-http` feature.
 
 - **Registration** (`POST /api/v1/users/create`): the password is hashed with
   Argon2 (on a blocking thread) and the email is normalized to lower case.
-- **Login** (`POST /api/v1/auth/login`): Basic auth in, a JWT (HS256, 24 h) out.
+- **Login** (`POST /api/v1/auth/login`): Basic auth in, a JWT (HS256) out.
   The JWT contains `unique_id` and a random `session_id` generated for that
   login. Unknown emails still burn an Argon2 verification so timing does not
   reveal which emails exist. Login writes the matching session to Redis.
 - **Session** (Redis): one active session per `unique_id`. A second login
   replaces the stored `session_id`, so JWTs from earlier logins are rejected
   even if their signatures and expiry are still valid. A session expires after
-  **20 minutes of inactivity** (`glue::session::SESSION_TIMEOUT_MINS`); Redis
+  **20 minutes of inactivity** (`glue::session::SESSION_TIMEOUT_MINS`). Redis
   also deletes idle keys using the same 20-minute TTL. Every 20 authenticated
   requests the session asks for a **refresh**, which reloads the user from the
   database while retaining the same `session_id` (so deleted users stop working).
@@ -148,7 +148,7 @@ logging in again after deploying the new version.
 
 ### Data model
 
-- Auth DB: `users(id, email, password, unique_id)`; emails are unique
+- Auth DB: `users(id, email, password, unique_id)`. Emails are unique
   case-insensitively.
 - To-do DB: `to_do_items(id, title, status, user_id, created_at)`. `user_id`
   holds the numeric auth user ID as text. Every query filters by `user_id`, so a
