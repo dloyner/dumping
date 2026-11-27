@@ -1,0 +1,15 @@
+[package]
+name = "basic_web_security"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+getrandom = "0.3"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.54.1", features = ["full"] }
+tower = { version = "0.5.3", features = ["limit"] }
+tower-http = { version = "0.7.1", features = ["cors", "timeout"] }
+
+[dev-dependencies]
+tower = { version = "0.5.3", features = ["util"] }
